@@ -1,0 +1,97 @@
+version: '3'
+services:
+  bot:
+    image: bot
+    build:
+      args:
+        user: ${USER}
+        uid: ${USER_ID}
+      context: ${APP_PATH_HOST}
+      dockerfile: dockerfile
+    container_name: bot
+    restart: unless-stopped
+    command: php-fpm -R
+    environment:
+      DB_HOST: mysql
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      DB_DATABASE: "${MYSQL_DATABASE}"
+      DOMAIN: "${DOMAIN}"
+
+    volumes:
+      - ./data/phpfpm/zzz-docker.conf:/usr/local/etc/php-fpm.d/zzz-docker.conf
+      - ${APP_PATH_HOST}:/var/www
+      - ./logs/php-errors:/var/www/storage/logs
+      - ./data/ssl:/data/ssl
+    ports:
+      - 9000:9000
+    links:
+      - mysql
+  cron:
+    build:
+      context: ./data/cron
+      dockerfile: dockerfile.cron
+    image: cron
+    # command: chmod +x /var/run.sh
+    restart: always
+  queue:
+    build:
+      args:
+        user: ${USER}
+        uid: ${USER_ID}
+      context: ${APP_PATH_HOST}
+      dockerfile: dockerfile.queue
+    container_name: queue
+    image: bot-queue
+    depends_on:
+      - mysql
+    entrypoint: /var/www/wait-for-it.sh mysql:3306
+    # command: php /var/www/artisan migrate
+    restart: unless-stopped
+    working_dir: /var/www/
+    environment:
+      DB_HOST: mysql
+      DB_USER: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      DB_DATABASE: "${MYSQL_DATABASE}"
+      DOMAIN: "${DOMAIN}"
+    volumes:
+      - ${APP_PATH_HOST}:/var/www
+      - ./logs/php-errors:/var/www/storage/logs  
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    ports:
+      - 54000:80
+      - 443:443
+    volumes:
+      - ./data/nginx:/etc/nginx/conf.d
+      - ./data/ssl:/etc/nginx/ssl
+      - ${APP_PATH_HOST}:/var/www
+      - ./logs/nginx:/var/log/nginx
+    links:
+      - bot
+  mysql:
+    image: mysql
+    # platform: linux/x86_64
+    volumes:
+      - ./data/mysql-dump:/docker-entrypoint-initdb.d
+      - ${Db_PATH_HOST}:/var/lib/mysql
+    restart: always
+    command: --init-file /docker-entrypoint-initdb.d/structure.sql # добавление таблиц для longman в mysql database
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+  phpmyadmin:
+    image: phpmyadmin
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      PMA_ARBITRARY: 0
+      PMA_HOST: mysql
+      # PMA_USER: "${MYSQL_USER}"
+      # PMA_PASSWORD: "${MYSQL_PASSWORD}"
+

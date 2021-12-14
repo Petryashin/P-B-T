@@ -1,0 +1,9 @@
+FROM ubuntu:20.04
+
+RUN apt-get update && apt-get install -y  \
+    bash \
+    curl 
+    
+COPY run.sh var/ 
+
+ENTRYPOINT /var/run.sh

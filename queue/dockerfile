@@ -1,0 +1,28 @@
+FROM php:7.4-fpm
+
+# Copy composer.lock and composer.json
+# COPY composer.lock composer.json /var/www/
+COPY artisan /var/www/
+# Install system dependencies
+RUN apt-get update && apt-get install -y  \
+    git \
+    curl \
+    cron\
+    zip \
+    nano\
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    unzip \
+    libzip-dev \
+    libcurl4-openssl-dev pkg-config libssl-dev
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Clear cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install PHP extensions
+RUN docker-php-ext-install mysqli pdo_mysql zip mbstring exif pcntl bcmath gd
+
+WORKDIR /var/www
+CMD ["php","artisan","queue:work"]
